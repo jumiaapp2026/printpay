@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrintPay STK Bot</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      max-width: 760px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 { margin-top: 0; font-size: 1.4rem; }
+    label { display: block; margin: 1rem 0 0.4rem; font-weight: 600; font-size: 0.9rem; }
+    input, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: #0f172a;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 0.7rem;
+      font-family: monospace;
+    }
+    textarea { min-height: 140px; resize: vertical; }
+    .row { display: flex; gap: 0.75rem; margin-top: 1.2rem; }
+    button {
+      padding: 0.75rem 1.25rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-start { background: #16a34a; color: white; }
+    .btn-stop { background: #dc2626; color: white; }
+    .status-msg { margin-top: 1rem; font-size: 0.9rem; color: #38bdf8; }
+    pre {
+      background: #020617;
+      padding: 1rem;
+      border-radius: 6px;
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>PrintPay Wallet STK Bot (3s Interval)</h1>
+
+    <label for="password">Dashboard Password (ADMIN_PASSWORD)</label>
+    <input id="password" type="password" placeholder="Enter your Render ADMIN_PASSWORD" />
+
+    <label for="amount">Amount per STK Request (KES)</label>
+    <input id="amount" type="number" min="1" value="10" />
+
+    <label for="numbers">Mobile Numbers (one per line, or comma-separated)</label>
+    <textarea id="numbers" placeholder="0712345678&#10;254798765432&#10;0110123456"></textarea>
+
+    <div class="row">
+      <button class="btn-start" onclick="startBatch()">Start Sending (3s Apart)</button>
+      <button class="btn-stop" onclick="stopBatch()">Stop Batch</button>
+    </div>
+
+    <div id="feedback" class="status-msg"></div>
+  </div>
+
+  <div class="card">
+    <h1>Live Execution Log (Mirrored in Render Logs)</h1>
+    <pre id="logs">Waiting for activity...</pre>
+  </div>
+
+  <script>
+    async function startBatch() {
+      const feedback = document.getElementById('feedback');
+      feedback.textContent = 'Submitting batch...';
+
+      const res = await fetch('/api/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': document.getElementById('password').value,
+        },
+        body: JSON.stringify({
+          amount: document.getElementById('amount').value,
+          numbers: document.getElementById('numbers').value,
+        }),
+      });
+
+      const data = await res.json();
+      feedback.textContent = res.ok
+        ? `${data.message}${data.skippedInvalid?.length ? ' | Invalid skipped: ' + data.skippedInvalid.join(', ') : ''}`
+        : `Error: ${data.error}`;
+      refreshLogs();
+    }
+
+    async function stopBatch() {
+      const res = await fetch('/api/stop', {
+        method: 'POST',
+        headers: {
+          'x-admin-password': document.getElementById('password').value,
+        },
+      });
+      const data = await res.json();
+      document.getElementById('feedback').textContent = data.message || data.error;
+    }
+
+    async function refreshLogs() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        document.getElementById('logs').textContent =
+          data.logs.length ? data.logs.join('\n') : 'No logs yet.';
+      } catch (e) {}
+    }
+
+    setInterval(refreshLogs, 2000);
+    refreshLogs();
+  </script>
+</body>
+</html>
